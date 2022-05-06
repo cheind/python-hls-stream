@@ -17,7 +17,9 @@ def chessboard_generator(
     check[::2, 1::2] = 1
 
     img = np.expand_dims(np.kron(check, np.ones((block_size, block_size))), -1)
-    img = np.tile(img, (1, 1, 3)).astype(np.uint8) * 255
+    img = np.tile(img, (1, 1, 3))
+    # img += np.random.randn(*img.shape) * 1e-2
+    img = np.clip(img, 0.0, 1.0).astype(np.uint8) * 255
 
     img[:, :block_size] = (0, 255, 255)
     img = img[: shape[0], : shape[1]]
@@ -53,9 +55,12 @@ def hls_stream(
             hls_list_size=100,
             pix_fmt="yuv420p",
             vcodec="libx264",  # no gpu support? libx264, else h264_nvenc
-            preset="ultrafast",  # ll for h264_nvenc https://gist.github.com/nico-lab/e1ba48c33bf2c7e1d9ffdd9c1b8d0493
+            preset="veryfast",  # ll for h264_nvenc https://gist.github.com/nico-lab/e1ba48c33bf2c7e1d9ffdd9c1b8d0493
             g=hls_segment_duration * fps,
             keyint_min=hls_segment_duration * fps,
+            # video_bitrate="4M",  # 1Mbit/s, CBR, see below
+            # maxrate="4M",
+            # bufsize="5M",
         )
         .overwrite_output()
         .run_async(pipe_stdin=True)
@@ -63,6 +68,10 @@ def hls_stream(
 
     # Note, -g (GOP) and keyint_min is necessary to get exact duration segments.
     # https://sites.google.com/site/linuxencoding/x264-ffmpeg-mapping#:~:text=%2Dg%20(FFmpeg,Recommended%20default%3A%20250
+    # For preset settings
+    # https://obsproject.com/blog/streaming-with-x264#:~:text=x264%20has%20several%20CPU%20presets,%2C%20slower%2C%20veryslow%2C%20placebo.
+    # See CBR
+    # https://trac.ffmpeg.org/wiki/Encode/H.264
 
     roll = int(np.ceil(width / (5 * fps)))
     gen = chessboard_generator(shape, roll, 100)
