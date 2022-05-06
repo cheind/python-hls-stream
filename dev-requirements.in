@@ -1,0 +1,5 @@
+-c requirements.txt
+black
+flake8
+pytest
+matplotlib

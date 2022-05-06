@@ -1,0 +1,5 @@
+ffmpeg-python
+numpy
+uvicorn
+fastapi
+schedule
