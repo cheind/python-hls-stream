@@ -10,17 +10,17 @@ class HLSPresets(enum.Enum):
     DEFAULT_CPU = {
         "vcodec": "libx264",
         "preset": "veryfast",
-        "video_bitrate": "4M",
-        "maxrate": "6M",
-        "bufsize": "10M",
+        "video_bitrate": "2M",
+        "maxrate": "2M",
+        "bufsize": "2M",
     }
     DEFAULT_GPU = {
         "vcodec": "h264_nvenc",
         "preset": "p3",  # https://gist.github.com/nico-lab/e1ba48c33bf2c7e1d9ffdd9c1b8d0493
         "tune": "ll",
-        "video_bitrate": "4M",
-        "maxrate": "6M",
-        "bufsize": "10M",
+        "video_bitrate": "2M",
+        "maxrate": "2M",
+        "bufsize": "2M",
     }
 
 
@@ -99,13 +99,13 @@ if __name__ == "__main__":
     shape = (1080, 1920)
     fps = 30
     roll = int(np.ceil(shape[1] / (5 * fps)))
-    gen = chessboard_generator(shape, roll, 100, fps=30)
+    gen = chessboard_generator(shape, roll, 100, fps=fps)
     enc = HLSEncoder(
         "static/video/chessboard.m3u8",
         shape=shape,
         input_fps=fps,
         use_wallclock_pts=False,
-        preset=HLSPresets.DEFAULT_GPU,
+        preset=HLSPresets.DEFAULT_CPU,
     )
 
     with enc:

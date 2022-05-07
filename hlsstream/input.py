@@ -35,9 +35,9 @@ def chessboard_generator(
         sleep_for = last_time + 1 / fps - time.perf_counter()
         if sleep_for > 0:
             time.sleep(sleep_for)
-        yield rolled
         last_time = time.perf_counter()
         total_roll += roll
+        yield rolled
 
 
 def test_chessboard_gen():

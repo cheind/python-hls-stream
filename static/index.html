@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>HLS Streaming Demo</title>
+    <link href="https://vjs.zencdn.net/7.18.1/video-js.css" rel="stylesheet">
+    <script src="https://vjs.zencdn.net/7.18.1/video.min.js"></script>
+    <style>
+        .video-parent {
+            width: 70%;
+            margin: 0px auto;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="video-parent">
+        <video id="my-video" class="video-js vjs-fluid vjs-fill" controls autoplay muted preload="auto"
+            data-setup='{"liveui": true}'>
+            <source src="http://127.0.0.1:5000/video/chessboard.m3u8" type="application/x-mpegURL">
+        </video>
+        Current time: <div id="current_time"></div>
+    </div>
+</body>
+<script>
+    var player = videojs('my-video'); player.play();
+
+    var intervalId = setInterval(function () {
+        document.getElementById("current_time").innerHTML = player.liveTracker.liveCurrentTime();
+    }, 5000);
+</script>
+
+</html>
