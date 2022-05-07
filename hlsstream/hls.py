@@ -1,103 +1,113 @@
-from typing import Iterator
+from typing import Callable, Any
 from pathlib import Path
 import ffmpeg
+import enum
 import numpy as np
+import time
 
 
-def chessboard_generator(
-    shape: tuple[int, int], roll: int, block_size: int
-) -> Iterator[np.ndarray]:
-
-    num_blocks = (
-        int(np.ceil(shape[0] / block_size)),
-        int(np.ceil(shape[1] / block_size)),
-    )
-    check = np.zeros(num_blocks)
-    check[1::2, ::2] = 1
-    check[::2, 1::2] = 1
-
-    img = np.expand_dims(np.kron(check, np.ones((block_size, block_size))), -1)
-    img = np.tile(img, (1, 1, 3))
-    # img += np.random.randn(*img.shape) * 1e-2
-    img = np.clip(img, 0.0, 1.0).astype(np.uint8) * 255
-
-    img[:, :block_size] = (0, 255, 255)
-    img = img[: shape[0], : shape[1]]
-    print(img.shape)
-
-    while True:
-        yield img
-        img = np.roll(img, roll, 1)
+class HLSPresets(enum.Enum):
+    DEFAULT_CPU = {
+        "vcodec": "libx264",
+        "preset": "veryfast",
+        "video_bitrate": "4M",
+        "maxrate": "6M",
+        "bufsize": "10M",
+    }
+    DEFAULT_GPU = {
+        "vcodec": "h264_nvenc",
+        "preset": "p3",  # https://gist.github.com/nico-lab/e1ba48c33bf2c7e1d9ffdd9c1b8d0493
+        "tune": "ll",
+        "video_bitrate": "4M",
+        "maxrate": "6M",
+        "bufsize": "10M",
+    }
 
 
-def hls_stream(
-    outdir: Path,
-    prefix: str,
-    shape: tuple[int, int] = (1080, 1920),
-    fps: int = 20,
-    hls_segment_duration=5,
-):
-    height, width = shape
+# For preset settings
+# https://obsproject.com/blog/streaming-with-x264#:~:text=x264%20has%20several%20CPU%20presets,%2C%20slower%2C%20veryslow%2C%20placebo.
 
-    proc = (
-        ffmpeg.input(
-            "pipe:",
-            format="rawvideo",
-            pix_fmt="rgb24",
-            s="{}x{}".format(width, height),
-            framerate=fps,
+
+class HLSEncoder:
+    def __init__(
+        self,
+        out_path: Path,
+        shape: tuple[int, int] = (1080, 1920),
+        input_fps: int = 30,
+        use_wallclock_pts: bool = False,
+        preset: HLSPresets = HLSPresets.DEFAULT_CPU,
+        **hls_kwargs,
+    ) -> None:
+        self.out_path = out_path
+        self.shape = shape
+
+        self.inp_settings = {
+            "format": "rawvideo",
+            "pix_fmt": "rgb24",
+            "s": "{}x{}".format(shape[1], shape[0]),
+            "framerate": input_fps,
+            "use_wallclock_as_timestamps": use_wallclock_pts,
+        }
+        self.enc_settings = {
+            "format": "hls",
+            "pix_fmt": "yuv420p",
+            "hls_time": 5,
+            "hls_list_size": 12,
+            "hls_flags": "delete_segments",  # otherwise only m3u8 is updated correctly
+            "start_number": 0,
+            **preset.value,
+            **hls_kwargs,
+        }
+        # Compute keyframe interval for most precise segment duration
+        # Note, -g (GOP) and keyint_min is necessary to get exact duration segments.
+        # https://sites.google.com/site/linuxencoding/x264-ffmpeg-mapping#:~:text=%2Dg%20(FFmpeg,Recommended%20default%3A%20250
+        nkey = self.enc_settings["hls_time"] * self.inp_settings["framerate"]
+        self.enc_settings["g"] = nkey
+        self.enc_settings["keyint_min"] = nkey
+
+        self.proc: Callable[[np.ndarray[np.uint8, Any]]] = None
+        self.time: float = 0.0
+
+    def __enter__(self) -> "HLSEncoder":
+        self.time = 0.0
+        self.proc = (
+            ffmpeg.input("pipe:", **self.inp_settings)
+            .output(str(self.out_path), **self.enc_settings)
+            .overwrite_output()
+            .run_async(pipe_stdin=True)
         )
-        .output(
-            str(Path(outdir) / f"{prefix}.m3u8"),
-            format="hls",
-            start_number=0,
-            hls_time=hls_segment_duration,
-            hls_list_size=100,
-            pix_fmt="yuv420p",
-            vcodec="libx264",  # no gpu support? libx264, else h264_nvenc
-            preset="veryfast",  # ll for h264_nvenc https://gist.github.com/nico-lab/e1ba48c33bf2c7e1d9ffdd9c1b8d0493
-            g=hls_segment_duration * fps,
-            keyint_min=hls_segment_duration * fps,
-            # video_bitrate="4M",  # 1Mbit/s, CBR, see below
-            # maxrate="4M",
-            # bufsize="5M",
-        )
-        .overwrite_output()
-        .run_async(pipe_stdin=True)
-    )
+        return self
 
-    # Note, -g (GOP) and keyint_min is necessary to get exact duration segments.
-    # https://sites.google.com/site/linuxencoding/x264-ffmpeg-mapping#:~:text=%2Dg%20(FFmpeg,Recommended%20default%3A%20250
-    # For preset settings
-    # https://obsproject.com/blog/streaming-with-x264#:~:text=x264%20has%20several%20CPU%20presets,%2C%20slower%2C%20veryslow%2C%20placebo.
-    # See CBR
-    # https://trac.ffmpeg.org/wiki/Encode/H.264
+    def __exit__(self, type, value, traceback):
+        self.proc.stdin.close()
+        self.proc = None
 
-    roll = int(np.ceil(width / (5 * fps)))
-    gen = chessboard_generator(shape, roll, 100)
-
-    while True:
-        proc.stdin.write(next(gen).tobytes())
-    proc.stdin.close()
-
-
-def test_chessboard_gen():
-    import matplotlib.pyplot as plt
-
-    shape = (1080, 1920)
-    fps = 30
-    roll_over = 5  # roll over in 5 secs
-    roll = int(np.ceil(shape[1] / (roll_over * fps)))
-    gen = chessboard_generator(shape, roll=roll, block_size=120)
-
-    fig, ax = plt.subplots()
-    img_ = ax.imshow(next(gen))
-    while True:
-        plt.pause(1 / fps)
-        img_.set_data(next(gen))
+    def __call__(self, rgb24: np.ndarray[np.uint8, Any]) -> float:
+        if self.inp_settings["use_wallclock_as_timestamps"]:
+            start_time = time.time()  # not very precise
+        else:
+            start_time = self.time
+            self.time += 1 / self.inp_settings["framerate"]
+        self.proc.stdin.write(rgb24.tobytes())
+        return start_time
 
 
 if __name__ == "__main__":
-    hls_stream(
-        "static/video", "chessboard", shape=(1080, 1920), fps=30, hls_segment_duration=5
+
+    from .input import chessboard_generator
+
+    shape = (1080, 1920)
+    fps = 30
+    roll = int(np.ceil(shape[1] / (5 * fps)))
+    gen = chessboard_generator(shape, roll, 100, fps=30)
+    enc = HLSEncoder(
+        "static/video/chessboard.m3u8",
+        shape=shape,
+        input_fps=fps,
+        use_wallclock_pts=False,
+        preset=HLSPresets.DEFAULT_GPU,
     )
+
+    with enc:
+        while True:
+            enc(next(gen))
