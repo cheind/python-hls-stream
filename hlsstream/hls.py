@@ -53,7 +53,7 @@ class HLSEncoder:
             "pix_fmt": "yuv420p",
             "hls_time": 5,
             "hls_list_size": 12,
-            "hls_flags": "delete_segments",  # otherwise only m3u8 is updated correctly
+            "hls_flags": "delete_segments+program_date_time",  # otherwise only m3u8 is updated correctly
             "start_number": 0,
             **preset.value,
             **hls_kwargs,
