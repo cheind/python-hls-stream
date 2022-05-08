@@ -60,7 +60,8 @@
         const lastSegment = segments[segments.length - 1];
 
         if (!lastSegment || !lastSegment.videoTimingInfo) {
-            setTimeout(function () { update_markers(); }, 5000);
+            setTimeout(function () { update_markers(); }, 1000);
+            return;
         }
 
         var markers = [
