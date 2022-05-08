@@ -6,10 +6,36 @@
     <title>HLS Streaming Demo</title>
     <link href="https://vjs.zencdn.net/7.18.1/video-js.css" rel="stylesheet">
     <script src="https://vjs.zencdn.net/7.18.1/video.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
     <style>
         .video-parent {
             width: 70%;
             margin: 0px auto;
+        }
+
+        .vjs-marker {
+            position: absolute;
+            background: red;
+            width: 5px;
+            height: 110%;
+            top: -5%;
+            z-index: 30;
+            margin-left: -3px;
+        }
+
+        .vjs-marker:hover span {
+            opacity: 1;
+        }
+
+        .vjs-marker span {
+            position: absolute;
+            bottom: 15px;
+            opacity: 0;
+            margin-left: -20px;
+            z-index: 90;
+            background: rgba(0, 0, 0, .8);
+            padding: 8px;
+            font-size: 10px;
         }
     </style>
 </head>
@@ -18,17 +44,65 @@
     <div class="video-parent">
         <video id="my-video" class="video-js vjs-fluid vjs-fill" controls autoplay muted preload="auto"
             data-setup='{"liveui": true}'>
-            <source src="http://127.0.0.1:5000/video/chessboard.m3u8" type="application/x-mpegURL">
+            <source src="//127.0.0.1:5000/video/chessboard.m3u8" type="application/x-mpegURL">
+            <!--<track kind="chapters" src="//127.0.0.1:5000/video/chessboard.vtt" srclang="en" label="English" default>-->
         </video>
         Current time: <div id="current_time"></div>
     </div>
 </body>
 <script>
-    var player = videojs('my-video'); player.play();
+    var video = videojs('my-video');
+    video.play();
 
-    var intervalId = setInterval(function () {
-        document.getElementById("current_time").innerHTML = player.liveTracker.liveCurrentTime();
-    }, 5000);
+    var update_markers = function () {
+        const vhs = video.tech().vhs;
+        const segments = vhs.playlists.media().segments;
+        const lastSegment = segments[segments.length - 1];
+
+        if (!lastSegment || !lastSegment.videoTimingInfo) {
+            setTimeout(function () { update_markers(); }, 5000);
+        }
+
+        var markers = [
+            { time: 50, label: 'First marker' },
+            { time: 150, label: 'Second marker' },
+            { time: 200, label: 'Third marker' },
+            { time: 220, label: 'Fourth marker' }
+        ];
+
+        var total = lastSegment.videoTimingInfo.baseMediaDecodeTime;
+        console.log("absolute time is :", total);
+
+        //var total = video.duration();
+        //var total = video.liveTracker.liveCurrentTime();
+        // console.log(total, video.liveTracker.liveCurrentTime())
+
+        // Also check: https://codepen.io/team/rcrooks1969/pen/LJBdPJ
+        var p = jQuery(video.controlBar.progressControl.children_[0].el_);
+
+        for (var i = 0; i < markers.length; i++) {
+
+            var left = (markers[i].time / total * 100) + '%';
+            var time = markers[i].time;
+            var el = jQuery('<div class="vjs-marker" style="left:' + left + '" data-time="' + time + '"><span>' + markers[i].label + '</span></div>');
+
+            el.click(function () {
+                video.currentTime($(this).data('time'));
+            });
+
+            p.append(el);
+        }
+    };
+
+    setTimeout(function () { update_markers(); }, 5000);
+
+
+
+    // var intervalId = setInterval(function () {
+    //     document.getElementById("current_time").innerHTML = video.liveTracker.liveCurrentTime();
+    // }, 5000);
+
+
 </script>
 
 </html>
