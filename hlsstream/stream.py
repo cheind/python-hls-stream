@@ -96,9 +96,9 @@ if __name__ == "__main__":
 
     from .input import chessboard_generator
 
-    shape = (480, 640)
+    shape = (180, 320)
     fps = 30
-    roll = int(np.ceil(shape[1] / (5 * fps)))
+    roll = int(np.ceil(shape[1] / (30 * fps)))
     gen = chessboard_generator(shape, roll, 20, fps=fps)
     enc = HLSEncoder(
         "static/video/chessboard.m3u8",

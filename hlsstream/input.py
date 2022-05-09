@@ -1,8 +1,9 @@
-from distutils.log import warn
+import dataclasses
 from typing import Iterator, Optional
 import numpy as np
 import time
 import logging
+import datetime
 
 _logger = logging.getLogger("input")
 
@@ -32,6 +33,22 @@ def rate_limited_loop(fps: float) -> Iterator[float]:
         t_next += td
 
 
+@dataclasses.dataclass
+class Event:
+    at: float
+    until: float
+    name: str
+
+    @staticmethod
+    def create_random(lambd: float = 20.0, dur: float = 2.0):
+        event_at = time.time() + np.random.exponential(scale=20)
+        event_name = datetime.datetime.fromtimestamp(event_at).strftime(
+            "%H:%M:%S"
+        )
+        event_until = event_at + 2.0
+        return Event(event_at, event_until, f"Event at {event_name}")
+
+
 def chessboard_generator(
     shape: tuple[int, int],
     roll: int,
@@ -53,12 +70,18 @@ def chessboard_generator(
     img = np.tile(img, (1, 1, 3))
     img += np.random.randn(*img.shape) * noise_std
     img = np.clip(img, 0.0, 1.0).astype(np.uint8) * 255
-
-    img[:, :block_size] = (0, 255, 255)
     img = img[: shape[0], : shape[1]]
+
+    ev = Event.create_random(lambd=10, dur=2)
 
     total_roll = 0
     for ts in rate_limited_loop(fps=fps):
+        t_cur = time.time()
+        if t_cur > ev.until:
+            ev = Event.create_random(lambd=10, dur=2)
+            img[:block_size, :block_size] = (0, 0, 0)
+        elif t_cur > ev.at:
+            img[:block_size, :block_size] = (0, 255, 255)
         rolled = np.roll(img, total_roll, 1)
         yield ts, rolled
         total_roll += roll
