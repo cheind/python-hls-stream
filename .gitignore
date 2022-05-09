@@ -128,5 +128,5 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-static/video*
+static/video/*
 !static/video/__keep__
