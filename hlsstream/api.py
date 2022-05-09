@@ -33,7 +33,7 @@ async def markers(response: Response):
     # response.headers["Content-Type"] = "application/x-mpegURL"
     # return FileResponse("static/video/" + fileName, filename=fileName)
     markers = cache.get("markers")
-    return JSONResponse(content=json.dumps(markers))
+    return JSONResponse(content=json.dumps({"markers": markers}))
 
 
 app.mount("/", StaticFiles(directory="static", html=True), name="static")
