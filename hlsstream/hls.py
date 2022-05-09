@@ -96,10 +96,10 @@ if __name__ == "__main__":
 
     from .input import chessboard_generator
 
-    shape = (1080, 1920)
+    shape = (480, 640)
     fps = 30
     roll = int(np.ceil(shape[1] / (5 * fps)))
-    gen = chessboard_generator(shape, roll, 100, fps=fps)
+    gen = chessboard_generator(shape, roll, 20, fps=fps)
     enc = HLSEncoder(
         "static/video/chessboard.m3u8",
         shape=shape,
@@ -110,4 +110,5 @@ if __name__ == "__main__":
 
     with enc:
         while True:
-            enc(next(gen))
+            ts, img = next(gen)
+            enc(img)
