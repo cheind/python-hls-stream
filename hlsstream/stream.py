@@ -45,7 +45,7 @@ class HLSEncoder:
             "format": "rawvideo",
             "pix_fmt": "rgb24",
             "s": "{}x{}".format(shape[1], shape[0]),
-            "framerate": input_fps,
+            "r": input_fps,
             "use_wallclock_as_timestamps": use_wallclock_pts,
         }
         self.enc_settings = {
@@ -61,7 +61,7 @@ class HLSEncoder:
         # Compute keyframe interval for most precise segment duration
         # Note, -g (GOP) and keyint_min is necessary to get exact duration segments.
         # https://sites.google.com/site/linuxencoding/x264-ffmpeg-mapping#:~:text=%2Dg%20(FFmpeg,Recommended%20default%3A%20250
-        nkey = self.enc_settings["hls_time"] * self.inp_settings["framerate"]
+        nkey = self.enc_settings["hls_time"] * self.inp_settings["r"]
         self.enc_settings["g"] = nkey
         self.enc_settings["keyint_min"] = nkey
 
@@ -87,7 +87,7 @@ class HLSEncoder:
             start_time = time.time()  # not very precise
         else:
             start_time = self.time
-            self.time += 1 / self.inp_settings["framerate"]
+            self.time += 1 / self.inp_settings["r"]
         self.proc.stdin.write(rgb24.tobytes())
         return start_time
 

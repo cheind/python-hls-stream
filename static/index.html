@@ -122,7 +122,7 @@
         const seq = media.mediaSequence;
         const lt = video.liveTracker
 
-        const low = duration * (seq + 1);
+        const low = duration * seq;
         //const high = lt.seekableEnd() - lt.seekableStart() + low;
         const high = segments.reduce(function (prev, seg) {
             return prev + seg.duration;
@@ -156,7 +156,7 @@
                     el = markers[i].el;
                     el.css({ 'left': left * 100 + '%' });
                 } else {
-                    var el = jQuery('<div class="vjs-marker" style="left:' + left * 100 + "%" + '" data-time="' + markers[i].time + '"><span>' + markers[i].label + '</span></div>');
+                    var el = jQuery('<div class="vjs-marker" style="left:' + left * 100 + "%" + '" data-time="' + markers[i].time + '"><span>' + markers[i].text + '</span></div>');
                     el.click(function () {
                         video.currentTime($(this).data('time'));
                     });
