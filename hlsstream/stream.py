@@ -111,15 +111,17 @@ def main():
 
     markers = []
     cache.set("markers", markers)
+    virtual_ts = 0.0
     with enc:
         ev_prev = False
         while True:
             ts, img, ev = next(gen)
             enc(img)
+            virtual_ts += 1 / fps
             if not ev_prev and ev:
                 markers.append(
                     {
-                        "time": ts,
+                        "time": virtual_ts,
                         "text": f"Marker {len(markers)+1}",
                     }
                 )
