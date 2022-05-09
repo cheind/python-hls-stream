@@ -119,7 +119,7 @@ def main():
             if not ev_prev and ev:
                 markers.append(
                     {
-                        "time": f"{ts:.1f}",
+                        "time": ts,
                         "text": f"Marker {len(markers)+1}",
                     }
                 )

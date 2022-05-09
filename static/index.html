@@ -54,12 +54,7 @@
     var video = videojs('my-video');
     video.play();
 
-    var markers = [
-        { time: 20, label: 'First marker' },
-        { time: 150, label: 'Second marker' },
-        { time: 200, label: 'Third marker' },
-        { time: 220, label: 'Fourth marker' }
-    ];
+    var markers = []
 
     var update_markers = function () {
         const vhs = video.tech().vhs;
@@ -115,48 +110,29 @@
 
             el.css('visibility', visible ? 'visible' : 'hidden');
         }
-
-
-
-
-
-
-
-        //var total = video.duration();
-        //var total = video.liveTracker.liveCurrentTime();
-        // console.log(total, video.liveTracker.liveCurrentTime())
-
-        // Also check: https://codepen.io/team/rcrooks1969/pen/LJBdPJ
-        // 
-
-        // for (var i = 0; i < markers.length; i++) {
-
-        //     var left = (markers[i].time / total * 100) + '%';
-        //     var time = markers[i].time;
-        //     
-
-        //     el.click(function () {
-        //         video.currentTime($(this).data('time'));
-        //     });
-
-        //     p.append(el);
-        // }
     }
 
     var make_list = function () {
+        data = { 'ts_start': -1.0 }
+        if (markers.length > 0) {
+            data['ts_start'] = markers[markers.length - 1]['time']
+        }
         return $.ajax({
-            'url': '//127.0.0.1:5000/markers'
+            'type': 'get',
+            'url': '//127.0.0.1:5000/markers',
+            'data': data
         }).then(function (results) {
             results = JSON.parse(results);
-            $("#markers").empty();
-            results['markers'].forEach(function (el) {
-                $("#markers").append("<li>" + el['time'] + ' ' + el['text'] + "</li>");
+            new_markers = results['markers']
+            new_markers.forEach(function (el) {
+                $("#markers").append("<li>" + el['time'].toFixed(1) + ' ' + el['text'] + "</li>");
             });
+            markers = markers.concat(new_markers)
         });
     }
 
-    var intervalId = setInterval(update_markers, 5000);
-    // 
+    //var intervalId = setInterval(update_markers, 5000);
+
 
     $(document).ready(make_list);
     var intervalId2 = setInterval(make_list, 5000);

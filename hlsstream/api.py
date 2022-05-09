@@ -29,10 +29,9 @@ async def video(response: Response, fileName: str):
 
 
 @app.get("/markers")
-async def markers(response: Response):
-    # response.headers["Content-Type"] = "application/x-mpegURL"
-    # return FileResponse("static/video/" + fileName, filename=fileName)
+async def markers(response: Response, ts_start: float = -1.0):
     markers = cache.get("markers")
+    markers = [m for m in markers if m["time"] > ts_start]
     return JSONResponse(content=json.dumps({"markers": markers}))
 
 
