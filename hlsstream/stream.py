@@ -117,7 +117,12 @@ def main():
             ts, img, ev = next(gen)
             enc(img)
             if not ev_prev and ev:
-                markers.append((ts, f"Marker {len(markers)+1}"))
+                markers.append(
+                    {
+                        "time": f"{ts:.1f}",
+                        "text": f"Marker {len(markers)+1}",
+                    }
+                )
                 cache.set("markers", markers)
             ev_prev = ev
 
