@@ -105,9 +105,14 @@ def test_chessboard_gen():
 
     fig, ax = plt.subplots()
     img_ = ax.imshow(next(gen)[1])
+    prev_ev = False
     while True:
         plt.pause(1e-5)
-        img_.set_data(next(gen)[1])
+        ts, img, ev = next(gen)
+        img_.set_data(img)
+        if not prev_ev and ev:
+            print("now")
+        prev_ev = ev
 
 
 if __name__ == "__main__":
