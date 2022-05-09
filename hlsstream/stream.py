@@ -92,23 +92,35 @@ class HLSEncoder:
         return start_time
 
 
-if __name__ == "__main__":
-
+def main():
     from .input import chessboard_generator
+    from .sync import Cache
 
     shape = (180, 320)
     fps = 30
     roll = int(np.ceil(shape[1] / (30 * fps)))
     gen = chessboard_generator(shape, roll, 20, fps=fps)
     enc = HLSEncoder(
-        "static/video/chessboard.m3u8",
+        "video/chessboard.m3u8",
         shape=shape,
         input_fps=fps,
         use_wallclock_pts=False,
         preset=HLSPresets.DEFAULT_CPU,
     )
+    cache = Cache()
 
+    markers = []
+    cache.set("markers", markers)
     with enc:
+        ev_prev = False
         while True:
-            ts, img = next(gen)
+            ts, img, ev = next(gen)
             enc(img)
+            if not ev_prev and ev:
+                markers.append((ts, f"Marker {len(markers)+1}"))
+                cache.set("markers", markers)
+            ev_prev = ev
+
+
+if __name__ == "__main__":
+    main()

@@ -42,9 +42,7 @@ class Event:
     @staticmethod
     def create_random(lambd: float = 20.0, dur: float = 2.0):
         event_at = time.time() + np.random.exponential(scale=20)
-        event_name = datetime.datetime.fromtimestamp(event_at).strftime(
-            "%H:%M:%S"
-        )
+        event_name = datetime.datetime.fromtimestamp(event_at).strftime("%H:%M:%S")
         event_until = event_at + 2.0
         return Event(event_at, event_until, f"Event at {event_name}")
 
@@ -55,8 +53,14 @@ def chessboard_generator(
     block_size: int = 100,
     fps: Optional[int] = 10000,
     noise_std: float = 0.0,
-) -> Iterator[np.ndarray]:
-    """Generates rolling chessboard images."""
+) -> Iterator[tuple[float, np.ndarray, bool]]:
+    """Generates rolling chessboard images.
+
+    Returns:
+        timestamp: timestamp relative to start of generator [sec]
+        image: rgb24 image
+        ev: true if an event is currently active, false otherwise
+    """
 
     num_blocks = (
         int(np.ceil(shape[0] / block_size)),
@@ -73,6 +77,7 @@ def chessboard_generator(
     img = img[: shape[0], : shape[1]]
 
     ev = Event.create_random(lambd=10, dur=2)
+    ev_active = False
 
     total_roll = 0
     for ts in rate_limited_loop(fps=fps):
@@ -80,10 +85,12 @@ def chessboard_generator(
         if t_cur > ev.until:
             ev = Event.create_random(lambd=10, dur=2)
             img[:block_size, :block_size] = (0, 0, 0)
+            ev_active = False
         elif t_cur > ev.at:
             img[:block_size, :block_size] = (0, 255, 255)
+            ev_active = True
         rolled = np.roll(img, total_roll, 1)
-        yield ts, rolled
+        yield ts, rolled, ev_active
         total_roll += roll
 
 
