@@ -1,6 +1,35 @@
+from distutils.log import warn
 from typing import Iterator, Optional
 import numpy as np
 import time
+import logging
+
+_logger = logging.getLogger("input")
+
+
+def rate_limited_loop(fps: float) -> Iterator[float]:
+    """Rate limited loop."""
+
+    def _busy_wait_until(tend: float):
+        while tend - time.perf_counter() > 0.0:
+            pass
+
+    td = 1 / fps
+    t_start = time.perf_counter()
+    t_next = t_start + td
+    rate_failed_emitted = False
+    while True:
+        t_cur = time.perf_counter() - t_start
+        yield t_cur
+        remain = max(t_next - time.perf_counter(), 0)
+        if remain > 0.1:
+            time.sleep(remain)
+        elif remain > 0.0:
+            _busy_wait_until(t_next)
+        elif remain < 0.0 and not rate_failed_emitted:
+            rate_failed_emitted = True
+            _logger.warning(f"Too slow at {t_cur}")
+        t_next += td
 
 
 def chessboard_generator(
@@ -29,31 +58,26 @@ def chessboard_generator(
     img = img[: shape[0], : shape[1]]
 
     total_roll = 0
-    last_time = time.perf_counter()
-    while True:
+    for ts in rate_limited_loop(fps=fps):
         rolled = np.roll(img, total_roll, 1)
-        sleep_for = last_time + 1 / fps - time.perf_counter()
-        if sleep_for > 0:
-            time.sleep(sleep_for)
-        last_time = time.perf_counter()
+        yield ts, rolled
         total_roll += roll
-        yield rolled
 
 
 def test_chessboard_gen():
     import matplotlib.pyplot as plt
 
-    shape = (1080, 1920)
+    shape = (200, 320)
     fps = 30
     roll_over = 5  # roll over in 5 secs
     roll = int(np.ceil(shape[1] / (roll_over * fps)))
-    gen = chessboard_generator(shape, roll=roll, block_size=120)
+    gen = chessboard_generator(shape, roll=roll, block_size=20, fps=fps)
 
     fig, ax = plt.subplots()
-    img_ = ax.imshow(next(gen))
+    img_ = ax.imshow(next(gen)[1])
     while True:
-        plt.pause(1 / fps)
-        img_.set_data(next(gen))
+        plt.pause(1e-5)
+        img_.set_data(next(gen)[1])
 
 
 if __name__ == "__main__":
