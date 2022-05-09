@@ -129,3 +129,4 @@ dmypy.json
 .pyre/
 
 static/video*
+!static/video/__keep__
