@@ -51,10 +51,11 @@
     </div>
 </body>
 <script>
-    var video = videojs('my-video');
-    video.play();
 
-    var markers = []
+
+    var markers = [];
+    var video = null;
+    var vhs = null;
 
     var update_markers = function () {
         const vhs = video.tech().vhs;
@@ -112,7 +113,68 @@
         }
     }
 
-    var make_list = function () {
+    function endpoints(media) {
+        const segments = media.segments;
+        const last = segments[segments.length - 1];
+        const first = segments[0];
+
+        const duration = media.targetDuration;
+        const seq = media.mediaSequence;
+        const lt = video.liveTracker
+
+        const low = duration * (seq + 1);
+        //const high = lt.seekableEnd() - lt.seekableStart() + low;
+        const high = segments.reduce(function (prev, seg) {
+            return prev + seg.duration;
+        }, low);
+
+        console.log('low', low, 'high', high);
+        return {
+            'low': low,
+            'high': high
+        };
+    }
+
+    function move_markers_inner() {
+        if (!vhs) {
+            vhs = video.tech().vhs;
+        } else {
+            const media = vhs.playlists.media();
+            if (!media) {
+                return;
+            }
+            const ep = endpoints(media);
+            var pbar = jQuery(video.controlBar.progressControl.children_[0].el_);
+
+            for (var i = 0; i < markers.length; i++) {
+                var left = (markers[i].time - ep.low) / (ep.high - ep.low);
+                visible = left >= 0 && left <= 1.0;
+                left = Math.min(Math.max(left, 0.0), 1.0);
+
+                if ("el" in markers[i]) {
+                    // update
+                    el = markers[i].el;
+                    el.css({ 'left': left * 100 + '%' });
+                } else {
+                    var el = jQuery('<div class="vjs-marker" style="left:' + left * 100 + "%" + '" data-time="' + markers[i].time + '"><span>' + markers[i].label + '</span></div>');
+                    el.click(function () {
+                        video.currentTime($(this).data('time'));
+                    });
+                    pbar.append(el);
+                    markers[i]['el'] = el;
+                }
+                el.css('visibility', visible ? 'visible' : 'hidden');
+            }
+        }
+    }
+
+    function move_markers() {
+        move_markers_inner();
+        requestAnimationFrame(move_markers);
+    }
+
+
+    var update_markers = function () {
         data = { 'ts_start': -1.0 }
         if (markers.length > 0) {
             data['ts_start'] = markers[markers.length - 1]['time']
@@ -124,18 +186,24 @@
         }).then(function (results) {
             results = JSON.parse(results);
             new_markers = results['markers']
-            new_markers.forEach(function (el) {
-                $("#markers").append("<li>" + el['time'].toFixed(1) + ' ' + el['text'] + "</li>");
+            new_markers.forEach(function (m) {
+                $("#markers").append("<li>" + m['time'].toFixed(1) + ' ' + m['text'] + "</li>");
             });
             markers = markers.concat(new_markers)
         });
     }
 
-    //var intervalId = setInterval(update_markers, 5000);
 
 
-    $(document).ready(make_list);
-    var intervalId2 = setInterval(make_list, 5000);
+    $(document).ready(function () {
+        video = videojs('my-video');
+        video.play();
+        update_markers();
+        move_markers();
+    });
+    var intervalId2 = setInterval(update_markers, 5000);
+
+
 
 
 
