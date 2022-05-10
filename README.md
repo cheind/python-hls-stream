@@ -22,6 +22,7 @@ The system combines multiple processes to generated the desired result, each imp
   - `hlsstream.stream` event (mint-square) detection is currently not based on computer-vision but based on checkerboard generator knowledge. In reality, you will have separate detection services that read images and emit marker events.
   - `hlsstream.stream` HLS stream encoder expects `rawvideo` (images) input. Except for setting a target FPS, I did not find a way to provide a PTS per frame. Hence, `ffmpeg` assumes `1/FPS` between two frames, even if reality the FPS varies. To resolve, you should keep track of generator timestamps vs target timestamps and if an event needs to be generated, convert from generator timestamp to target timestamp. The demo currently employs a busy-waiting strategy to keep timestamps closest to target fps. This leads to high CPU usage.
   - `hlsstream.api` currently configures CORS very carelessly. In production you will need to restrict it accordingly.
+  - `index.html` attempts to determine the endpoints of the timeline of the `video-js` player. The current method seems to work when live or when not tracking the live stream, but might fail when `hlsstream.stream` is terminated. A refresh should fix things.
 
 
   ## Usage

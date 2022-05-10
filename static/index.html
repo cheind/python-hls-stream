@@ -23,16 +23,22 @@
             margin-top: 20px;
         }
 
-        .anim {
+        .marker-table-anim {
             transition: background 5s linear;
         }
 
-        .highlight {
+        .marker-table-highlight {
             background: #abebc6;
         }
 
-        .normal {
+        .marker-table-normal {
             background: transparent;
+        }
+
+        tr:hover {
+            color: blueviolet;
+            font-weight: bold;
+            cursor: pointer;
         }
 
         .vjs-marker {
@@ -85,8 +91,7 @@
 
         <div class="row">
             <div class="eight columns">
-                <video id="my-video" class="video-js vjs-fluid" controls autoplay muted preload="auto"
-                    data-setup='{"liveui": true, "inactivityTimeout": 0}'>
+                <video id="my-video" class="video-js vjs-fluid" controls autoplay muted preload="auto">
                     <source src="//127.0.0.1:5000/video/chessboard.m3u8" type="application/x-mpegURL">
                 </video>
 
@@ -99,7 +104,7 @@
                             <th>Text</th>
                         </tr>
                     </thead>
-                    <tbody id="markers"></tbody>
+                    <tbody id="tbodymarkers"></tbody>
                 </table>
             </div>
         </div>
@@ -124,9 +129,10 @@
         const lt = video.liveTracker
 
         let low = duration * seq;
-        let high = segments.reduce(function (prev, seg) {
+        let seglengths = segments.reduce(function (prev, seg) {
             return prev + seg.duration;
-        }, low);
+        }, 0.0);
+        let high = seglengths + low
 
         if (tracker.isLive()) {
             high = low + tracker.liveWindow();
@@ -139,75 +145,113 @@
         //console.log('low', low_dt, 'high', low_high, tracker.isLive(), tracker.liveWindow());
         return {
             'low': low,
-            'high': high
+            'high': high,
         };
     }
 
-    function move_markers_inner() {
+    function animate_timeline_markers() {
         if (!tech) {
+            // will be attached at some point in time.
+            // TODO: is there an event for this?
             tech = video.tech();
-        } else {
-            const media = tech.vhs.playlists.media();
-            if (!media) {
-                return;
-            }
-            const ep = endpoints(media);
-            var pbar = jQuery(video.controlBar.progressControl.children_[0].el_);
-
-            for (var i = 0; i < markers.length; i++) {
-                const pts = markers[i].time
-                const pending = pts > ep.high;
-                const lost = pts < ep.low;
-                const left = (markers[i].time - ep.low) / (ep.high - ep.low);
-
-                if (!markers[i]['el']) {
-                    // create marker div
-                    var el = jQuery('<div class="vjs-marker" style="left:100%" data-time="' + markers[i].time + '"><span>' + markers[i].text + '</span></div>');
-                    el.click(function () {
-                        video.currentTime($(this).data('time'));
-                    });
-                    pbar.append(el);
-                    markers[i]['el'] = el;
-                }
-
-                // update position
-                el = markers[i].el;
-                el.css({
-                    'left': left * 100 + '%', 'visibility': !(pending || lost) ? 'visible' : 'hidden'
-                });
-            }
+            return;
         }
+
+        const media = tech.vhs.playlists.media();
+        if (!media) {
+            // Media is also attached asynchrously.            
+            return;
+        }
+
+        // Query the endpoints of the timeline.
+        const ep = endpoints(media);
+
+        // Add markers to the timeline.
+        // TODO: Consider VTT and chapters, this would get rid of all the code below.
+        var pbar = jQuery(video.controlBar.progressControl.children_[0].el_);
+
+        for (var i = 0; i < markers.length; i++) {
+            const pts = markers[i].time
+            const pending = pts > ep.high;
+            const lost = pts < ep.low;
+            // Convert pts to relative timeline pos
+            const left = (markers[i].time - ep.low) / (ep.high - ep.low);
+
+            // We store a jQuery object with the marker.
+            if (!markers[i]['el']) {
+                // First time creation
+                var el = jQuery('<div class="vjs-marker" style="left:100%" data-time="' + markers[i].time + '"><span>' + markers[i].text + '</span></div>');
+                pbar.append(el);
+                markers[i]['el'] = el;
+            }
+
+            // update position
+            el = markers[i].el;
+            el.css({
+                'left': left * 100 + '%', 'visibility': !(pending || lost) ? 'visible' : 'hidden'
+            });
+        }
+
     }
 
+    /**
+     * request-animation-frame loop
+     */
     function animate_markers() {
-        move_markers_inner();
+        animate_timeline_markers();
         requestAnimationFrame(animate_markers);
     }
 
 
+    /**
+     * This function updates the markers list using the web API.
+     */
     var update_markers = function () {
+        // We query markers starting from the lastest marker we
+        // already know.
         data = { 'ts_start': -1.0 }
         if (markers.length > 0) {
             data['ts_start'] = markers[markers.length - 1]['time']
         }
+
+        // Start querying API
         return $.ajax({
             'type': 'get',
             'url': '//127.0.0.1:5000/markers',
             'data': data
         }).then(function (results) {
             results = JSON.parse(results);
+
+            // Iterate markers and generate a table entry
+            // Each marker has text and time. Time [sec] corresponds 
+            // to absolute stream time, i.e zero is when the stream started.
             new_markers = results['markers']
-            jmarkers = $("#markers")
             new_markers.forEach(function (m) {
-                dt = new Date(m['time'] * 1000).toISOString().substr(11, 8)
-                $("<tr class='anim highlight'><td>" + dt + '</td><td>' + m['text'] + "</td></tr>")
+                let dt = new Date(m['time'] * 1000).toISOString().substr(11, 8)
+                let id = "marker-table-" + Math.ceil(m['time']);
+                console.log(id)
+                $("<tr id='" + id + "' class='marker-table-anim marker-table-highlight'><td>" + dt + '</td><td>' + m['text'] + "</td></tr>")
                     .hide()
-                    .prependTo(jmarkers)
-                    .fadeIn('slow')
-                    .addClass('normal');
+                    .prependTo($("#tbodymarkers"))
+                    .fadeIn('slow', function () {
+                        // Once animation is complete, remove it
+                        $('#' + id).removeClass("marker-table-anim");
+                        $('#' + id).removeClass("marker-table-highlight");
+                    })
+                    .addClass('marker-table-normal')
+                    .click(function () {
+                        let ep = endpoints(tech.vhs.playlists.media());
+                        let seek = tech.vhs.stats.seekable[0]
+                        // convert from hls ep -> time on timeline?
+                        k = (ep.low - ep.high) / (seek.start - seek.end)
+                        d = seek.start - k * ep.low
+                        video.currentTime(m['time'] * k + d);
+                    });
             });
+
+            // Limite the number of markers to the latest N.
             markers = markers.concat(new_markers)
-            $("#markers > tr").each(function () {
+            $("#tbodymarkers > tr").each(function () {
                 if ($(this).index() >= 5) {
                     $(this).hide();
                 }
@@ -218,7 +262,18 @@
 
 
     $(document).ready(function () {
-        video = videojs('my-video');
+        video = videojs('my-video', {
+            liveui: true,
+            inactivityTimeout: 0,
+            html5: {
+                nativeAudioTracks: false,
+                nativeVideoTracks: false,
+                vhs: {
+                    debug: true,
+                    overrideNative: true
+                }
+            }
+        });
         video.play();
         update_markers();
         animate_markers();
