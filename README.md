@@ -26,7 +26,7 @@ The system combines multiple processes to generated the desired result, each imp
 
 
   ## Usage
-  Python 3.9 is required.
+  Python 3.9 is required. This should work on linux/windows.
   ```bash
   $ pip -m venv --upgrade-deps .venv
   $ source .venv/bin/activate
@@ -35,4 +35,4 @@ The system combines multiple processes to generated the desired result, each imp
   (.venv) $ python -m hlsstream
   ```
 
-  Point your browser to `http://127.0.0.1:5000`.
+  Point your browser to `http://127.0.0.1:5000`. Same commands, except for how to activate the venv apply to Windows.
