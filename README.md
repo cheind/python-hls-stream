@@ -2,8 +2,10 @@
 
 A minimal example to demonstrate real-time (seekable) HLS streaming from Python with dynamic timeline marker support.
 
-
-[![](etc/screenshot.png)](http://www.youtube.com/watch?v=kCIO3IHkXrY)
+<div align="center">
+<a href="https://www.youtube.com/watch?v=kCIO3IHkXrY"><img src="etc/screenshot.png" width="80%"/></a><br/>
+<sup>Front-end of HLS streaming demo. Click to view video.</sup>
+</div>
 
 
 Shown above, is a real-time generated HLS stream of a rolling checkerboard pattern. Ocassionally an event (mint square) is emitted that leads to markers being added to the table and the timeline. Depending on the HLS configuration you can leave the live edge and seek backwards in time.
