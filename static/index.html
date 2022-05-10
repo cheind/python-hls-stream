@@ -4,13 +4,35 @@
 <head>
     <meta charset="utf-8">
     <title>HLS Streaming Demo</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/skeleton/2.0.4/skeleton.css" rel="stylesheet">
     <link href="https://vjs.zencdn.net/7.18.1/video-js.css" rel="stylesheet">
+    <link href="//fonts.googleapis.com/css?family=Raleway:400,300,600" rel="stylesheet" type="text/css">
     <script src="https://vjs.zencdn.net/7.18.1/video.min.js"></script>
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
     <style>
-        .video-parent {
-            width: 40%;
-            margin: 0px auto;
+        .header {
+            text-align: center;
+            margin-top: 5rem;
+        }
+
+        .container {
+            max-width: 800px;
+        }
+
+        #my-video {
+            margin-top: 20px;
+        }
+
+        .anim {
+            transition: background 5s linear;
+        }
+
+        .highlight {
+            background: #abebc6;
+        }
+
+        .normal {
+            background: transparent;
         }
 
         .vjs-marker {
@@ -37,17 +59,51 @@
             padding: 8px;
             font-size: 10px;
         }
+
+        .author {
+            font-size: small;
+            text-align: right;
+        }
     </style>
 </head>
 
 <body>
-    <div class="video-parent">
-        <video id="my-video" class="video-js vjs-fluid vjs-fill" controls autoplay muted preload="auto"
-            data-setup='{"liveui": true}'>
-            <source src="//127.0.0.1:5000/video/chessboard.m3u8" type="application/x-mpegURL">
-            <!--<track kind="chapters" src="//127.0.0.1:5000/video/chessboard.vtt" srclang="en" label="English" default>-->
-        </video>
-        <ul id="markers"></ul>
+    <div class="container">
+        <section class="header">
+            <h2>HLS Streaming with timeline-markers.</h2>
+            <p style="text-align:justify; margin-bottom: 1rem;">Shown below, is a real-time generated HLS stream of a
+                rolling checkerboard
+                pattern.
+                Ocassionally an event (mint square) is emitted that leads to markers being added
+                to the table and the timeline. Depending on the HLS configuration you can leave the live edge
+                and seek backwards in time.</p>
+            <p class="author">
+                Christoph Heindl<br />
+                <a href="https://github.com/cheind/python-hls-stream">https://github.com/cheind/python-hls-stream</a>
+            </p>
+        </section>
+
+        <div class="row">
+            <div class="eight columns">
+                <video id="my-video" class="video-js vjs-fluid" controls autoplay muted preload="auto"
+                    data-setup='{"liveui": true, "inactivityTimeout": 0}'>
+                    <source src="//127.0.0.1:5000/video/chessboard.m3u8" type="application/x-mpegURL">
+                </video>
+
+            </div>
+            <div class="four columns">
+                <table class="u-full-width">
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>Text</th>
+                        </tr>
+                    </thead>
+                    <tbody id="markers"></tbody>
+                </table>
+            </div>
+        </div>
+
     </div>
 </body>
 <script>
@@ -55,65 +111,10 @@
 
     var markers = [];
     var video = null;
-    var vhs = null;
-
-    var update_markers = function () {
-        const vhs = video.tech().vhs;
-        const segments = vhs.playlists.media().segments;
-        const lastSegment = segments[segments.length - 1];
-        const firstSegment = segments[0];
-
-        console.log(segments);
-
-        var live = video.liveTracker.liveCurrentTime();
-        console.log('live ', live)
-        let low_dt = Date.parse(firstSegment.dateTimeString);
-        let high_dt = Date.parse(lastSegment.dateTimeString) + lastSegment.duration * 1000;
-        console.log((high_dt - low_dt) / 1e3, low_dt, high_dt)
-
-        if (!firstSegment || !firstSegment.videoTimingInfo ||
-            !lastSegment || !lastSegment.videoTimingInfo) {
-            return;
-        }
-
-        // Instead we should query the backend api?
-
-
-
-        var low = firstSegment.videoTimingInfo.baseMediaDecodeTime;
-        var high = lastSegment.videoTimingInfo.baseMediaDecodeTime;
-
-
-        console.log("absolute time is :", high, " first time is ", low);
-
-
-        var pbar = jQuery(video.controlBar.progressControl.children_[0].el_);
-        for (var i = 0; i < markers.length; i++) {
-
-            var left = (markers[i].time - low) / (high - low);
-            console.log("left ", i, " ", left)
-            visible = left >= 0 && left <= 1.0;
-            left = Math.min(Math.max(left, 0.0), 1.0);
-
-            if ("el" in markers[i]) {
-                // update
-                el = markers[i].el;
-                el.css({ 'left': left * 100 + '%' });
-            } else {
-                var time = markers[i].time;
-                var el = jQuery('<div class="vjs-marker" style="left:' + left * 100 + "%" + '" data-time="' + time + '"><span>' + markers[i].label + '</span></div>');
-                el.click(function () {
-                    video.currentTime($(this).data('time'));
-                });
-                pbar.append(el);
-                markers[i]['el'] = el;
-            }
-
-            el.css('visibility', visible ? 'visible' : 'hidden');
-        }
-    }
+    var tech = null;
 
     function endpoints(media) {
+        const tracker = video.liveTracker;
         const segments = media.segments;
         const last = segments[segments.length - 1];
         const first = segments[0];
@@ -122,13 +123,20 @@
         const seq = media.mediaSequence;
         const lt = video.liveTracker
 
-        const low = duration * seq;
-        //const high = lt.seekableEnd() - lt.seekableStart() + low;
-        const high = segments.reduce(function (prev, seg) {
+        let low = duration * seq;
+        let high = segments.reduce(function (prev, seg) {
             return prev + seg.duration;
         }, low);
 
-        console.log('low', low, 'high', high);
+        if (tracker.isLive()) {
+            high = low + tracker.liveWindow();
+        } else {
+            low = high - tracker.liveWindow();
+        }
+
+        low_dt = new Date(low * 1000).toISOString().substr(11, 8)
+        low_high = new Date(high * 1000).toISOString().substr(11, 8)
+        //console.log('low', low_dt, 'high', low_high, tracker.isLive(), tracker.liveWindow());
         return {
             'low': low,
             'high': high
@@ -136,10 +144,10 @@
     }
 
     function move_markers_inner() {
-        if (!vhs) {
-            vhs = video.tech().vhs;
+        if (!tech) {
+            tech = video.tech();
         } else {
-            const media = vhs.playlists.media();
+            const media = tech.vhs.playlists.media();
             if (!media) {
                 return;
             }
@@ -147,30 +155,33 @@
             var pbar = jQuery(video.controlBar.progressControl.children_[0].el_);
 
             for (var i = 0; i < markers.length; i++) {
-                var left = (markers[i].time - ep.low) / (ep.high - ep.low);
-                visible = left >= 0 && left <= 1.0;
-                left = Math.min(Math.max(left, 0.0), 1.0);
+                const pts = markers[i].time
+                const pending = pts > ep.high;
+                const lost = pts < ep.low;
+                const left = (markers[i].time - ep.low) / (ep.high - ep.low);
 
-                if ("el" in markers[i]) {
-                    // update
-                    el = markers[i].el;
-                    el.css({ 'left': left * 100 + '%' });
-                } else {
-                    var el = jQuery('<div class="vjs-marker" style="left:' + left * 100 + "%" + '" data-time="' + markers[i].time + '"><span>' + markers[i].text + '</span></div>');
+                if (!markers[i]['el']) {
+                    // create marker div
+                    var el = jQuery('<div class="vjs-marker" style="left:100%" data-time="' + markers[i].time + '"><span>' + markers[i].text + '</span></div>');
                     el.click(function () {
                         video.currentTime($(this).data('time'));
                     });
                     pbar.append(el);
                     markers[i]['el'] = el;
                 }
-                el.css('visibility', visible ? 'visible' : 'hidden');
+
+                // update position
+                el = markers[i].el;
+                el.css({
+                    'left': left * 100 + '%', 'visibility': !(pending || lost) ? 'visible' : 'hidden'
+                });
             }
         }
     }
 
-    function move_markers() {
+    function animate_markers() {
         move_markers_inner();
-        requestAnimationFrame(move_markers);
+        requestAnimationFrame(animate_markers);
     }
 
 
@@ -186,10 +197,21 @@
         }).then(function (results) {
             results = JSON.parse(results);
             new_markers = results['markers']
+            jmarkers = $("#markers")
             new_markers.forEach(function (m) {
-                $("#markers").append("<li>" + m['time'].toFixed(1) + ' ' + m['text'] + "</li>");
+                dt = new Date(m['time'] * 1000).toISOString().substr(11, 8)
+                $("<tr class='anim highlight'><td>" + dt + '</td><td>' + m['text'] + "</td></tr>")
+                    .hide()
+                    .prependTo(jmarkers)
+                    .fadeIn('slow')
+                    .addClass('normal');
             });
             markers = markers.concat(new_markers)
+            $("#markers > tr").each(function () {
+                if ($(this).index() >= 5) {
+                    $(this).hide();
+                }
+            });
         });
     }
 
@@ -199,17 +221,9 @@
         video = videojs('my-video');
         video.play();
         update_markers();
-        move_markers();
+        animate_markers();
     });
     var intervalId2 = setInterval(update_markers, 5000);
-
-
-
-
-
-    // var intervalId = setInterval(function () {
-    //     document.getElementById("current_time").innerHTML = video.liveTracker.liveCurrentTime();
-    // }, 5000);
 
 
 </script>
