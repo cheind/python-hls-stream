@@ -4,23 +4,24 @@ import ffmpeg
 import enum
 import numpy as np
 import time
+import shutil
 
 
 class HLSPresets(enum.Enum):
     DEFAULT_CPU = {
         "vcodec": "libx264",
         "preset": "veryfast",
-        "video_bitrate": "2M",
-        "maxrate": "2M",
-        "bufsize": "2M",
+        "video_bitrate": "6M",
+        "maxrate": "6M",
+        "bufsize": "6M",
     }
     DEFAULT_GPU = {
         "vcodec": "h264_nvenc",
         "preset": "p3",  # https://gist.github.com/nico-lab/e1ba48c33bf2c7e1d9ffdd9c1b8d0493
         "tune": "ll",
-        "video_bitrate": "2M",
-        "maxrate": "2M",
-        "bufsize": "2M",
+        "video_bitrate": "6M",
+        "maxrate": "6M",
+        "bufsize": "6M",
     }
 
 
@@ -72,6 +73,18 @@ class HLSEncoder:
         self.time = 0.0
         self.proc = (
             ffmpeg.input("pipe:", **self.inp_settings)
+            .drawtext(
+                start_number=0,
+                fontsize="(h/10)",
+                x="(w-text_w)/2",
+                y="h*0.8",
+                timecode="00:00:00:00",
+                timecode_rate=self.inp_settings["r"],
+                fontcolor="white",
+                escape_text=True,
+                box="1",
+                boxcolor="black",
+            )
             .output(str(self.out_path), **self.enc_settings)
             .overwrite_output()
             .run_async(pipe_stdin=True)
@@ -95,6 +108,11 @@ class HLSEncoder:
 def main():
     from .input import chessboard_generator
     from .sync import Cache
+    from pathlib import Path
+
+    outpath = Path("video").resolve()
+    shutil.rmtree(str(outpath))
+    outpath.mkdir()
 
     shape = (180, 320)
     fps = 30
