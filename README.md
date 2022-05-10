@@ -1,6 +1,6 @@
 # python-hls-stream
 
-A minimal example to demonstrate real-time (seekable) HLS streaming from Python with dynamic timeline marker support.
+A minimal proo-of-concept to demonstrate real-time (seekable) HLS streaming from Python with dynamic timeline marker support.
 
 <div align="center">
 <a href="https://www.youtube.com/watch?v=kCIO3IHkXrY"><img src="etc/screenshot.png" width="80%"/></a><br/>
