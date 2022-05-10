@@ -7,8 +7,7 @@ A minimal proo-of-concept to demonstrate real-time (seekable) HLS streaming from
 <sup>Front-end of HLS streaming demo. Click to view video.</sup>
 </div>
 
-
-Shown above, is a real-time generated HLS stream of a rolling checkerboard pattern. Ocassionally an event (mint square) is emitted that leads to markers being added to the table and the timeline. Depending on the HLS configuration you can leave the live edge and seek backwards in time.
+The video linked above shows how a real-time HTTP Live Streaming (HLS) can be generated and streamed from Python. Ocassionally an event (mint square) is emitted that leads to markers being added to the table and the timeline. Depending on the HLS configuration you can leave the live edge and seek backwards in time.
 
 ## Architecture
 The system combines multiple processes to generated the desired result, each implimented as a Python module
