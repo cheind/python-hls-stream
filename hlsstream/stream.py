@@ -53,8 +53,8 @@ class HLSEncoder:
             "format": "hls",
             "pix_fmt": "yuv420p",
             "hls_time": 5,
-            "hls_list_size": 12,
-            "hls_flags": "delete_segments+program_date_time",  # otherwise only m3u8 is updated correctly
+            "hls_list_size": 10 * 60 / 5,  # 10 minutes keep
+            "hls_flags": "delete_segments",  # remove outdated segments from disk
             "start_number": 0,
             **preset.value,
             **hls_kwargs,
