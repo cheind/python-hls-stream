@@ -41,7 +41,7 @@ app.mount("/", StaticFiles(directory="static", html=True), name="static")
 def main():
     uvicorn.run(
         "hlsstream.api:app",
-        host="127.0.0.1",
+        host="0.0.0.0",
         port=5000,
         log_level="debug",
         reload=True,

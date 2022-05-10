@@ -92,7 +92,7 @@
         <div class="row">
             <div class="eight columns">
                 <video id="my-video" class="video-js vjs-fluid" controls autoplay muted preload="auto">
-                    <source src="//127.0.0.1:5000/video/chessboard.m3u8" type="application/x-mpegURL">
+                    <source src="/video/chessboard.m3u8" type="application/x-mpegURL">
                 </video>
 
             </div>
@@ -217,7 +217,7 @@
         // Start querying API
         return $.ajax({
             'type': 'get',
-            'url': '//127.0.0.1:5000/markers',
+            'url': '/markers',
             'data': data
         }).then(function (results) {
             results = JSON.parse(results);
