@@ -34,4 +34,4 @@ The system combines multiple processes to generated the desired result, each imp
   (.venv) $ python -m hlsstream
   ```
 
-  Point your browser to `http://127.0.0.1:5000`. Same commands, except for how to activate the venv apply to Windows.
+  Point your browser to `http://127.0.0.1:5000`. Same commands, except for how to activate the venv, apply to Windows.
