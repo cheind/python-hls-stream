@@ -52,8 +52,8 @@ class HLSEncoder:
         self.enc_settings = {
             "format": "hls",
             "pix_fmt": "yuv420p",
-            "hls_time": 5,
-            "hls_list_size": 10 * 60 / 5,  # 10 minutes keep
+            "hls_time": 2,
+            "hls_list_size": 2 * 60 / 2,  # 10 minutes keep
             "hls_flags": "delete_segments",  # remove outdated segments from disk
             "start_number": 0,
             **preset.value,

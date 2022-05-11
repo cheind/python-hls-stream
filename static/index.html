@@ -260,24 +260,72 @@
     }
 
 
+    video = videojs('my-video', {
+        liveui: true,
+        inactivityTimeout: 0,
+        html5: {
+            nativeAudioTracks: false,
+            nativeVideoTracks: false,
+            vhs: {
+                // debug: true,
+                overrideNative: true
+            }
+        }
+    });
 
-    $(document).ready(function () {
-        video = videojs('my-video', {
-            liveui: true,
-            inactivityTimeout: 0,
-            html5: {
-                nativeAudioTracks: false,
-                nativeVideoTracks: false,
-                vhs: {
-                    debug: true,
-                    overrideNative: true
+    const sync_clocks = function (tech) {
+        media = tech.vhs.playlists.media()
+        return {
+            'stream_offset': media.targetDuration * media.mediaSequence
+        }
+    }
+
+    class ClockSync {
+        constructor(tech) {
+            this.tech = tech;
+            const media = tech.vhs.playlists.media()
+            this.offset_client_to_stream = media.targetDuration * media.mediaSequence;
+        }
+
+        to_stream(client_time) {
+            return client_time + this.offset_client_to_stream
+        }
+
+        to_client(stream_time) {
+            return stream_time - this.offset_client_to_stream
+        }
+
+        to_timecode(time) {
+            return new Date(time * 1000).toISOString().substr(11, 8)
+        }
+
+        get seekable_client_range() {
+            return this.tech.vhs.stats.seekable[0]
+        }
+    }
+
+    video.on('ready', () => {
+        video.tech().on('usage', (e) => {
+            if (e.name == 'vhs-timestamp-offset') {
+
+                const tech = video.tech()
+                sync = new ClockSync(tech)
+
+                const printcur = function () {
+                    const c = video.currentTime()
+                    const s = sync.to_stream(c)
+                    const seek = sync.seekable_client_range
+                    console.log(sync.to_timecode(s), sync.to_timecode(sync.to_stream(seek['end'])))
                 }
+
+                var myint = setInterval(printcur, 500);
+
             }
         });
-        video.play();
-        update_markers();
-        animate_markers();
     });
+    video.play();
+    update_markers();
+    animate_markers();
     var intervalId2 = setInterval(update_markers, 5000);
 
 
