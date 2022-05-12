@@ -113,173 +113,16 @@
 </body>
 <script>
 
-
-    var markers = [];
-    var video = null;
-    var tech = null;
-
-    function endpoints(media) {
-        const tracker = video.liveTracker;
-        const segments = media.segments;
-        const last = segments[segments.length - 1];
-        const first = segments[0];
-
-        const duration = media.targetDuration;
-        const seq = media.mediaSequence;
-        const lt = video.liveTracker
-
-        let low = duration * seq;
-        let seglengths = segments.reduce(function (prev, seg) {
-            return prev + seg.duration;
-        }, 0.0);
-        let high = seglengths + low
-
-        if (tracker.isLive()) {
-            high = low + tracker.liveWindow();
-        } else {
-            low = high - tracker.liveWindow();
-        }
-
-        low_dt = new Date(low * 1000).toISOString().substr(11, 8)
-        low_high = new Date(high * 1000).toISOString().substr(11, 8)
-        //console.log('low', low_dt, 'high', low_high, tracker.isLive(), tracker.liveWindow());
-        return {
-            'low': low,
-            'high': high,
-        };
-    }
-
-    function animate_timeline_markers() {
-        if (!tech) {
-            // will be attached at some point in time.
-            // TODO: is there an event for this?
-            tech = video.tech();
-            return;
-        }
-
-        const media = tech.vhs.playlists.media();
-        if (!media) {
-            // Media is also attached asynchrously.            
-            return;
-        }
-
-        // Query the endpoints of the timeline.
-        const ep = endpoints(media);
-
-        // Add markers to the timeline.
-        // TODO: Consider VTT and chapters, this would get rid of all the code below.
-        var pbar = jQuery(video.controlBar.progressControl.children_[0].el_);
-
-        for (var i = 0; i < markers.length; i++) {
-            const pts = markers[i].time
-            const pending = pts > ep.high;
-            const lost = pts < ep.low;
-            // Convert pts to relative timeline pos
-            const left = (markers[i].time - ep.low) / (ep.high - ep.low);
-
-            // We store a jQuery object with the marker.
-            if (!markers[i]['el']) {
-                // First time creation
-                var el = jQuery('<div class="vjs-marker" style="left:100%" data-time="' + markers[i].time + '"><span>' + markers[i].text + '</span></div>');
-                pbar.append(el);
-                markers[i]['el'] = el;
-            }
-
-            // update position
-            el = markers[i].el;
-            el.css({
-                'left': left * 100 + '%', 'visibility': !(pending || lost) ? 'visible' : 'hidden'
-            });
-        }
-
-    }
-
     /**
-     * request-animation-frame loop
+     * Synchronizes between stream time and client time.
+     * 
+     * To make this work, we make the HLS assumption that segment duration is constant.
+     * This helps us to compute the elapsed stream time, by looking at the HLS sequence
+     * number and multiply it by the segment duration. When the player connects, 
+     * a ClockSync object is created in we compute stream elapsed time as the offset
+     * between client and stream clock.
+     * 
      */
-    function animate_markers() {
-        animate_timeline_markers();
-        requestAnimationFrame(animate_markers);
-    }
-
-
-    /**
-     * This function updates the markers list using the web API.
-     */
-    var update_markers = function () {
-        // We query markers starting from the lastest marker we
-        // already know.
-        data = { 'ts_start': -1.0 }
-        if (markers.length > 0) {
-            data['ts_start'] = markers[markers.length - 1]['time']
-        }
-
-        // Start querying API
-        return $.ajax({
-            'type': 'get',
-            'url': '/markers',
-            'data': data
-        }).then(function (results) {
-            results = JSON.parse(results);
-
-            // Iterate markers and generate a table entry
-            // Each marker has text and time. Time [sec] corresponds 
-            // to absolute stream time, i.e zero is when the stream started.
-            new_markers = results['markers']
-            new_markers.forEach(function (m) {
-                let dt = new Date(m['time'] * 1000).toISOString().substr(11, 8)
-                let id = "marker-table-" + Math.ceil(m['time']);
-                console.log(id)
-                $("<tr id='" + id + "' class='marker-table-anim marker-table-highlight'><td>" + dt + '</td><td>' + m['text'] + "</td></tr>")
-                    .hide()
-                    .prependTo($("#tbodymarkers"))
-                    .fadeIn('slow', function () {
-                        // Once animation is complete, remove it
-                        $('#' + id).removeClass("marker-table-anim");
-                        $('#' + id).removeClass("marker-table-highlight");
-                    })
-                    .addClass('marker-table-normal')
-                    .click(function () {
-                        let ep = endpoints(tech.vhs.playlists.media());
-                        let seek = tech.vhs.stats.seekable[0]
-                        // convert from hls ep -> time on timeline?
-                        k = (ep.low - ep.high) / (seek.start - seek.end)
-                        d = seek.start - k * ep.low
-                        video.currentTime(m['time'] * k + d);
-                    });
-            });
-
-            // Limite the number of markers to the latest N.
-            markers = markers.concat(new_markers)
-            $("#tbodymarkers > tr").each(function () {
-                if ($(this).index() >= 5) {
-                    $(this).hide();
-                }
-            });
-        });
-    }
-
-
-    video = videojs('my-video', {
-        liveui: true,
-        inactivityTimeout: 0,
-        html5: {
-            nativeAudioTracks: false,
-            nativeVideoTracks: false,
-            vhs: {
-                // debug: true,
-                overrideNative: true
-            }
-        }
-    });
-
-    const sync_clocks = function (tech) {
-        media = tech.vhs.playlists.media()
-        return {
-            'stream_offset': media.targetDuration * media.mediaSequence
-        }
-    }
-
     class ClockSync {
         constructor(tech) {
             this.tech = tech;
@@ -304,31 +147,166 @@
         }
     }
 
+
+    var markers = [];
+    var video = null;
+    var clocks = null;
+    var last_query = 0;
+
+
+    /**
+     * Updates markers on the video-js timeline.
+     */
+    function animate_timeline_markers() {
+
+        var pbar = $(video.controlBar.progressControl.children_[0].el_);
+
+        for (var i = 0; i < markers.length; i++) {
+            // To place a marker on the timeline, we need to compute its relative
+            // position with respect to client timeline start/end. Since marker time
+            // is measured according to stream clock, we need to convert to client 
+            // time first.
+            const stream_pts = markers[i].time
+            const client_pts = clocks.to_client(stream_pts)
+            const client_range = clocks.seekable_client_range
+            const low = client_range.start;
+            const high = client_range.end;
+            const pending = client_pts > high;
+            const lost = client_pts < low;
+
+            // Convert pts to relative timeline pos
+            const left = (client_pts - low) / (high - low);
+
+            if (!markers[i]['el']) {
+                // First time we see this marker, we create a div. 
+                // Position will be updated below.
+                const id = "marker-vjs-" + Math.ceil(markers[i]['time']);
+                const el = jQuery('<div id="' + id + '" class="vjs-marker" style="left:100%" data-time="' + client_pts + '"><span>' + markers[i].text + '</span></div>');
+                pbar.append(el);
+                markers[i]['el'] = el;
+            }
+
+            // Update marker position position
+            el = markers[i].el;
+            el.css({
+                'left': left * 100 + '%', 'visibility': !(pending || lost) ? 'visible' : 'hidden'
+            });
+        }
+    }
+
+    function update_table(new_markers) {
+        new_markers.forEach(function (m) {
+            const id = "marker-table-" + Math.ceil(m['time']);
+            const dt = new Date(m['time'] * 1000).toISOString().substr(11, 8)
+
+            $("<tr id='" + id + "' class='marker-table-anim marker-table-highlight'><td>" + dt + '</td><td>' + m['text'] + "</td></tr>")
+                .hide()
+                .prependTo($("#tbodymarkers"))
+                .fadeIn('slow', function () {
+                    // Once animation is complete, remove it
+                    $('#' + id).removeClass("marker-table-anim");
+                    $('#' + id).removeClass("marker-table-highlight");
+                })
+                .addClass('marker-table-normal')
+                .click(function () {
+                    const c = clocks.to_client(m['time'])
+                    video.currentTime(c);
+                });
+
+        });
+
+        $("#tbodymarkers > tr").each(function () {
+            if ($(this).index() >= 5) {
+                $(this).hide();
+            }
+        });
+    }
+
+    /**
+     * Removes all markers that are before the clients seekable range.
+     */
+    function delete_lost_markers() {
+        // Markers are sorted according by time ascending by API.
+        const client_range = clocks.seekable_client_range;
+        const low = clocks.to_stream(client_range.start);
+        const first = markers.findIndex(m => m.time >= low);
+
+        if (first) {
+            const lost_markers = markers.slice(0, first);
+            lost_markers.forEach(function (m) {
+                const midx = Math.ceil(m['time']);
+                $('#marker-table-' + midx).remove();
+                $('#marker-vjs-' + midx).remove();
+            })
+            markers = markers.slice(first);
+        }
+
+    }
+
+
+    /**
+     * Queries available markers from the web API.
+     * Additionally triggers updates for marker table.
+     */
+    function query_markers() {
+        // We query markers starting from the lastest marker 
+        // we already know.
+        let data = { 'ts_start': -1.0 }
+        if (markers.length > 0) {
+            data['ts_start'] = markers[markers.length - 1]['time']
+        }
+
+        // Start querying API
+        return $.ajax({
+            'type': 'get',
+            'url': '/markers',
+            'data': data
+        }).then(function (results) {
+            results = JSON.parse(results);
+            let new_markers = results['markers'];
+            update_table(new_markers);
+            delete_lost_markers();
+            markers = markers.concat(new_markers);
+        });
+    }
+
+    /**
+     * Main request-animation loop.
+     */
+    function loop(timestamp) {
+        if (!last_query || (timestamp - last_query >= 2000)) {
+            last_query = timestamp;
+            query_markers();
+        }
+
+        animate_timeline_markers();
+        window.requestAnimationFrame(loop);
+    }
+
+
+    video = videojs('my-video', {
+        liveui: true,
+        inactivityTimeout: 0,
+        html5: {
+            nativeAudioTracks: false,
+            nativeVideoTracks: false,
+            vhs: {
+                // debug: true,
+                overrideNative: true
+            }
+        }
+    });
+
     video.on('ready', () => {
         video.tech().on('usage', (e) => {
             if (e.name == 'vhs-timestamp-offset') {
-
-                const tech = video.tech()
-                sync = new ClockSync(tech)
-
-                const printcur = function () {
-                    const c = video.currentTime()
-                    const s = sync.to_stream(c)
-                    const seek = sync.seekable_client_range
-                    console.log(sync.to_timecode(s), sync.to_timecode(sync.to_stream(seek['end'])))
-                }
-
-                var myint = setInterval(printcur, 500);
-
+                const tech = video.tech();
+                clocks = new ClockSync(tech);
+                window.requestAnimationFrame(loop);
             }
         });
     });
     video.play();
-    update_markers();
-    animate_markers();
-    var intervalId2 = setInterval(update_markers, 5000);
-
-
 </script>
 
 </html>
