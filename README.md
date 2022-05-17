@@ -29,7 +29,7 @@ The system combines multiple processes to generated the desired result
 ## Clocks
 The system involves several clocks that need to be synchronized.
  - `GEN`: Generator clock in [sec]. This clock is usually built into capturing devices such as cameras.
- - `HLS`: HLS stream clock in [sec]. Frames from `GEN` are encoded for `HLS`. When `HLS` assumes a fixed encoding frame-rate, you need to keep track of `GEN` and `HLS` timesteps. While your system internal process will use `GEN` timesteps, the API should report `HLS` timestamps.
+ - `HLS`: HLS stream clock in [sec]. Frames from `GEN` are encoded for `HLS`. When `HLS` assumes a fixed encoding frame-rate, you need to keep track of `GEN` and `HLS` timestamps. While your system internal process will use `GEN` timestamps, the API should report `HLS` timestamps.
  - `CLIENT`: HMTL video-js clock in [sec]. When the client connects to the HLS stream, the client clock is reset. To seek the video correctly, we need to convert markers from `HLS <-> CLIENT`. If we assume this transformation takes only an offset and if we assume that the segment duration is constant, we can compute the offset as    
  
         offset = HLS-sequence * HLS-duration
