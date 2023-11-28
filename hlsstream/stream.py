@@ -76,6 +76,7 @@ class HLSEncoder:
             .drawtext(
                 start_number=0,
                 fontsize="(h/10)",
+                fontfile="etc/roboto.ttf",
                 x="(w-text_w)/2",
                 y="h*0.8",
                 timecode="00:00:00:00",
@@ -112,7 +113,7 @@ def main():
 
     outpath = Path("video").resolve()
     shutil.rmtree(str(outpath))
-    outpath.mkdir()
+    outpath.mkdir(parents=True, exist_ok=True)
 
     shape = (180, 320)
     fps = 30
